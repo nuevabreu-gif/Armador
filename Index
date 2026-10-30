@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Armador de Index - Jennyfit</title>
+    <!-- Librería para crear el ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { background-color: #0b0d0c; color: #f4f4f5; font-family: system-ui, sans-serif; padding: 15px; margin: 0; }
+        h1 { color: #39FF14; font-size: 1.5rem; text-align: center; margin-bottom: 5px; }
+        p.sub { text-align: center; color: #a1a1aa; font-size: 0.85rem; margin-top: 0; margin-bottom: 20px; }
+        
+        .block-container { background: #18181b; border: 1px solid #3f3f46; border-radius: 10px; padding: 12px; margin-bottom: 15px; }
+        .block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        label { font-size: 0.85rem; font-weight: bold; color: #06b6d4; }
+        
+        .btn-trash { background: rgba(255, 42, 42, 0.15); border: 1px solid #ff2a2a; color: #ff2a2a; border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+        .btn-trash:active { background: #ff2a2a; color: white; }
+
+        textarea { 
+            width: 100%; height: 100px; background: #09090b; color: #39FF14; 
+            border: 1px solid #27272a; border-radius: 8px; padding: 10px; 
+            font-family: monospace; font-size: 0.8rem; resize: vertical; box-sizing: border-box;
+        }
+        textarea:focus { outline: none; border-color: #39FF14; }
+        
+        .controls { background: #18181b; padding: 15px; border-radius: 12px; position: sticky; bottom: 10px; box-shadow: 0 -5px 20px rgba(0,0,0,0.8); border: 1px solid #39FF14; margin-top: 20px; }
+        input[type="text"] { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #3f3f46; background: #09090b; color: white; margin-bottom: 10px; box-sizing: border-box; font-weight: bold; }
+        
+        .btn-main { width: 100%; padding: 14px; background: #39FF14; color: #051405; border: none; border-radius: 8px; font-size: 1rem; font-weight: 900; cursor: pointer; text-transform: uppercase; margin-bottom: 8px; }
+        .btn-main:active { background: #2cc20e; }
+        
+        .btn-secondary { width: 100%; padding: 14px; background: #06b6d4; color: #041a1f; border: none; border-radius: 8px; font-size: 1rem; font-weight: 900; cursor: pointer; text-transform: uppercase; }
+        .btn-secondary:active { background: #0891b2; }
+        
+        .save-status { color: #a1a1aa; font-size: 0.75rem; text-align: center; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <h1>Armador de Index</h1>
+    <p class="sub">Pega cada bloque en su casilla. Se guarda automáticamente.</p>
+
+    <div id="blocks-container"></div>
+
+    <div class="controls">
+        <label style="color:#39FF14;">Nombre del archivo final:</label>
+        <input type="text" id="filename" value="index" placeholder="Ej: index">
+        
+        <button class="btn-main" onclick="descargarHTML()">⬇️ Descargar Index Completo</button>
+        <button class="btn-secondary" onclick="descargarZIP()">📦 Descargar ZIP con los .txt</button>
+        
+        <div class="save-status" id="status">Esperando texto...</div>
+    </div>
+
+    <script>
+        // Lista exacta de tus bloques en el orden de la captura
+        const BLOQUES = [
+            "1. sbloqueantesdetodos.txt",
+            "2. bloque2A.txt",
+            "3. bloque2b.txt",
+            "4. bloque2C.txt",
+            "5. bloque2D.txt",
+            "6. bloquepegardespuesdebloqueantesdetodosytodoslosbloques2.txt",
+            "7. bloque1A.txt",
+            "8. bloque1B.txt",
+            "9. bloque1c.txt",
+            "10. bloque1d.txt",
+            "11. bloque3A.txt",
+            "12. bloque3B.txt",
+            "13. bloque3C.txt",
+            "14. bloque4A.txt",
+            "15. bloque4B.txt",
+            "16. bloque4CA.txt",
+            "17. bloque4CB.txt",
+            "18. bloque5A.txt",
+            "19. bloque5b.txt",
+            "20. bloque5C.txt",
+            "21. bloque5D.txt",
+            "22. bloque5E.txt",
+            "23. bloque6A.txt",
+            "24. bloque6B.txt"
+        ];
+
+        const container = document.getElementById('blocks-container');
+
+        // Crear las cajas de texto dinámicamente
+        BLOQUES.forEach((nombre, index) => {
+            const div = document.createElement('div');
+            div.className = 'block-container';
+            
+            // Header con el nombre y el botón de borrar
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'block-header';
+            
+            const label = document.createElement('label');
+            label.innerText = nombre;
+            
+            const btnTrash = document.createElement('button');
+            btnTrash.className = 'btn-trash';
+            btnTrash.innerText = '🗑️';
+            btnTrash.title = 'Borrar contenido de esta casilla';
+            btnTrash.onclick = () => borrarBloque(index);
+            
+            headerDiv.appendChild(label);
+            headerDiv.appendChild(btnTrash);
+            
+            const textarea = document.createElement('textarea');
+            textarea.id = 'bloque-' + index;
+            textarea.placeholder = 'Pega aquí el contenido de ' + nombre;
+            
+            // Cargar texto guardado si existe
+            const saved = localStorage.getItem('jf_block_' + index);
+            if (saved) textarea.value = saved;
+
+            // Guardar automáticamente al escribir
+            textarea.addEventListener('input', (e) => {
+                localStorage.setItem('jf_block_' + index, e.target.value);
+                document.getElementById('status').innerText = 'Guardado automático activo ✔️';
+            });
+
+            div.appendChild(headerDiv);
+            div.appendChild(textarea);
+            container.appendChild(div);
+        });
+
+        // Función para borrar una casilla específica
+        function borrarBloque(index) {
+            if (confirm('¿Seguro que quieres borrar el contenido de ' + BLOQUES[index] + '?')) {
+                document.getElementById('bloque-' + index).value = '';
+                localStorage.removeItem('jf_block_' + index);
+                document.getElementById('status').innerText = 'Bloque borrado.';
+            }
+        }
+
+        // Función para descargar el index unificado
+        function descargarHTML() {
+            const nombreInput = document.getElementById('filename').value.trim() || 'index';
+            let contenidoFinal = '';
+
+            for (let i = 0; i < BLOQUES.length; i++) {
+                const txt = document.getElementById('bloque-' + i).value;
+                if (txt) {
+                    contenidoFinal += txt + '\n'; 
+                }
+            }
+
+            if (!contenidoFinal) {
+                alert("Las casillas están vacías. Pega el código primero.");
+                return;
+            }
+
+            const blob = new Blob([contenidoFinal], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nombreInput.endsWith('.html') ? nombreInput : nombreInput + '.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            document.getElementById('status').innerText = '¡Archivo HTML descargado con éxito!';
+        }
+
+        // Función para descargar todos los bloques en un ZIP
+        async function descargarZIP() {
+            if (typeof JSZip === 'undefined') {
+                alert("La librería ZIP no se ha cargado. Verifica tu conexión a internet.");
+                return;
+            }
+
+            const zip = new JSZip();
+            let hayDatos = false;
+
+            for (let i = 0; i < BLOQUES.length; i++) {
+                const txt = document.getElementById('bloque-' + i).value;
+                if (txt && txt.trim() !== '') {
+                    // Limpiamos el nombre para que sea válido como archivo
+                    const nombreLimpio = BLOQUES[i].replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+                    zip.file(nombreLimpio, txt);
+                    hayDatos = true;
+                }
+            }
+
+            if (!hayDatos) {
+                alert("No hay texto guardado en las casillas para comprimir.");
+                return;
+            }
+
+            document.getElementById('status').innerText = 'Creando archivo ZIP... ⏳';
+
+            try {
+                const content = await zip.generateAsync({ type: "blob" });
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Bloques_Jennyfit.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                document.getElementById('status').innerText = '¡ZIP descargado con éxito! ✅';
+            } catch (error) {
+                alert("Hubo un error al crear el ZIP: " + error.message);
+                document.getElementById('status').innerText = 'Error al crear ZIP.';
+            }
+        }
+    </script>
+</body>
+</html>
